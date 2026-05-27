@@ -21,6 +21,15 @@ resource "aws_instance" "ec2_web" {
   key_name = "my-keypair"
   associate_public_ip_address = false
 
+  # EC2起動時にNginxを自動インストールする
+  user_data = <<-EOF
+    #!/bin/bash
+    dnf update -y
+    dnf install nginx -y
+    systemctl start nginx
+    systemctl enable nginx
+  EOF
+
   tags = {
     Name = "web_1a"
   }
