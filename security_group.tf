@@ -69,6 +69,12 @@ resource "aws_security_group" "security_group_web" {
     #ALBからの接続のみを許可するため、CIDRではなくALBにアタッチするセキュリティグループのIDを指定する
     security_groups = [aws_security_group.security_group_alb.id]
   }
+  ingress {
+    from_port = 22
+    to_port = 22
+    protocol = "tcp"
+    security_groups = [aws_security_group.security_group_bastion.id]
+  }
 
   #アウトバウンドルールの設定
   egress {
