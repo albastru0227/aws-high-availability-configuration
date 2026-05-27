@@ -33,3 +33,9 @@ variable "private_subnet_1c_cidr" {
   type = string
   default = "10.0.20.0/24"
 }
+
+variable "ip_address_ssh" {
+  description = "EC2へSSH接続可能なIPアドレス"
+  type = string
+  sensitive = true
+}
