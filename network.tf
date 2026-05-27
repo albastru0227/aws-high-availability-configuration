@@ -62,10 +62,54 @@ resource "aws_eip" "my_eip" {
 }
 
 # NAT Gatewayの設定
-resource "aws_nat_gateway" "my_gateway" {
+resource "aws_nat_gateway" "my_nat_gateway" {
   allocation_id = aws_eip.my_eip.id
   subnet_id = aws_subnet.my_subnet_public_1a.id
   tags = {
-    Name = "my_gateway"
+    Name = "my_nat_gateway"
   }
+}
+
+# ルートテーブルの設定
+resource "aws_route_table" "my_route_table_public" {
+  vpc_id = aws_vpc.my_vpc.id
+  route { # route = {}ではない
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.my_igw.id
+  }
+  tags = {
+    Name = "my_route_table_public"
+  }
+}
+
+resource "aws_route_table" "my_route_table_private" {
+  vpc_id = aws_vpc.my_vpc.id
+  route { # route = {}ではない
+    cidr_block = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.my_nat_gateway.id
+  }
+  tags = {
+    Name = "my_route_table_private"
+  }
+}
+
+# ルートテーブルとサブネットの関連付けの設定
+resource "aws_route_table_association" "public_1a" {
+  subnet_id = aws_subnet.my_subnet_public_1a.id
+  route_table_id = aws_route_table.my_route_table_public.id
+}
+
+resource "aws_route_table_association" "public_1c" {
+  subnet_id = aws_subnet.my_subnet_public_1c.id
+  route_table_id = aws_route_table.my_route_table_public.id
+}
+
+resource "aws_route_table_association" "private_1a" {
+  subnet_id = aws_subnet.my_subnet_private_1a.id
+  route_table_id = aws_route_table.my_route_table_private.id
+}
+
+resource "aws_route_table_association" "private_1c" {
+  subnet_id = aws_subnet.my_subnet_private_1c.id
+  route_table_id = aws_route_table.my_route_table_private.id
 }
