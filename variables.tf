@@ -39,3 +39,16 @@ variable "ip_address_ssh" {
   type = string
   sensitive = true
 }
+
+variable "ec2_ami" {
+  description = "EC2のAMI（Amazon Linux 2023）"
+  type = string
+  #Amazon Linux 2023 kernel-6.1 AMI（長期サポート版）
+  default = "ami-0b53194d9d4d5cfea"
+}
+
+variable "ec2_instance_type" {
+  description = "EC2で使うインスタンスタイプ"
+  type = string
+  default = "t3.micro"
+}
