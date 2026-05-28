@@ -25,14 +25,13 @@ resource "aws_instance" "ec2_web" {
   user_data = <<-EOF
     #!/bin/bash
     dnf update -y
+    
+    #Nginxのインストールと起動
     dnf install nginx -y
     systemctl start nginx
     systemctl enable nginx
-  EOF
-
-  # EC2起動時にMariaDbを自動でインストールする
-  user_data = <<-EOF
-    #!/bin/bash
+    
+    #MariaDBのインストール
     dnf install mariadb105 -y
   EOF
 
