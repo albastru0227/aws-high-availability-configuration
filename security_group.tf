@@ -88,3 +88,29 @@ resource "aws_security_group" "security_group_web" {
     Name = "security_group_web"
   }
 }
+
+# RDS用のセキュリティグループ
+resource "aws_security_group" "security_group_rds" {
+  name = "security_group_rds"
+  vpc_id = aws_vpc.my_vpc.id
+  
+  #インバウンドルールの設定
+  ingress {
+    from_port = 3306
+    to_port = 3306
+    protocol = "tcp"
+    security_groups = [aws_security_group.security_group_web.id]
+  }
+
+  #アウトバウンドルールの設定
+  egress {
+    from_port = 0
+    to_port = 0
+    protocol = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "security_group_rds"
+  }
+}

@@ -52,3 +52,35 @@ variable "ec2_instance_type" {
   type = string
   default = "t3.micro"
 }
+
+# DB関連の変数
+variable "db_subnet_1a_cidr" {
+  description = "DBサブネット1aのCIDR"
+  type = string
+  default = "10.0.30.0/24"
+}
+
+variable "db_subnet_1c_cidr" {
+  description = "DBサブネット1cのCIDR"
+  type = string
+  default = "10.0.40.0/24"
+}
+
+variable "db_name" {
+  description = "データベースの名前"
+  type = string
+  default = "my_database"
+}
+
+variable "db_username" {
+  description = "SQLのユーザーネーム"
+  type = string
+  default = "albas"
+  sensitive = true
+}
+
+variable "db_password" {
+  description = "SQLのパスワード"
+  type = string
+  sensitive = true
+}

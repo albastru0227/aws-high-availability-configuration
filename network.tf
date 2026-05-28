@@ -45,6 +45,25 @@ resource "aws_subnet" "my_subnet_private_1c" {
   }
 }
 
+# DB用サブネット
+resource "aws_subnet" "db_subnet_1a" {
+  vpc_id = aws_vpc.my_vpc.id
+  cidr_block = var.db_subnet_1a_cidr
+  availability_zone = "ap-northeast-1a"
+  tags = {
+    Name = "db_subnet_1a"
+  }
+}
+
+resource "aws_subnet" "db_subnet_1c" {
+  vpc_id = aws_vpc.my_vpc.id
+  cidr_block = var.db_subnet_1c_cidr
+  availability_zone = "ap-northeast-1c"
+  tags = {
+    Name = "db_subnet_1c"
+  }
+}
+
 # IGWの設定
 resource "aws_internet_gateway" "my_igw" {
   vpc_id = aws_vpc.my_vpc.id
