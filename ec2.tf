@@ -30,6 +30,12 @@ resource "aws_instance" "ec2_web" {
     systemctl enable nginx
   EOF
 
+  # EC2起動時にMariaDbを自動でインストールする
+  user_data = <<-EOF
+    #!/bin/bash
+    dnf install mariadb105 -y
+  EOF
+
   tags = {
     Name = "web_1a"
   }
