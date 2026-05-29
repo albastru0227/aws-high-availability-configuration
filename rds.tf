@@ -41,21 +41,18 @@ resource "null_resource" "create_table" {
     rds_id = aws_db_instance.rds_instance.id
   }
 
+  #userテーブルの作成が完了してから実行する
+  depends_on = [ 
+    aws_instance.ec2_web,
+    aws_db_instance.rds_instance
+   ]
+
   #MySQLでusersテーブルを作成する
   provisioner "remote-exec" {
-    inline = [ <<-MySQL
-      mysql \
-        -h ${aws_db_instance.rds_instance.address} \
-        -P 3306 \
-        -u ${var.db_username} \
-        -p${var.db_password} \
-        ${var.db_name} \
-        -e 'create table if not exists users (
-          id int auto_increment primary key,
-          name varchar(100),
-          email varchar(100)
-        );'
-    MySQL
+    inline = [ 
+      "sleep 60",
+      "sudo dnf install -y mariadb105",
+      "mysql -h ${aws_db_instance.rds_instance.address} -P 3306 -u ${var.db_username} -p${var.db_password} ${var.db_name} -e 'create table if not exists users (id int auto_increment primary key, name varchar(100), email varchar(100));'"
     ]
 
     #接続設定
