@@ -41,6 +41,7 @@ resource "null_resource" "create_table" {
     rds_id = aws_db_instance.rds_instance.id
   }
 
+  #MySQLでusersテーブルを作成する
   provisioner "remote-exec" {
     inline = [ <<-MySQL
       mysql \
@@ -56,5 +57,17 @@ resource "null_resource" "create_table" {
         );'
     MySQL
     ]
+
+    #接続設定
+    connection {
+      type = "ssh"
+      user = "ec2-user"
+      private_key = file("C:/Users/albas/Downloads/my-keypair.pem")
+      host = aws_instance.ec2_web.private_ip
+
+      bastion_host = aws_instance.ec2_bastion.public_ip
+      bastion_user = "ec2-user"
+      bastion_private_key = file("C:/Users/albas/Downloads/my-keypair.pem")
+    }
   }
 }
