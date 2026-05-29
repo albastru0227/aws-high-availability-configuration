@@ -21,19 +21,17 @@ resource "aws_instance" "ec2_web" {
   key_name = "my-keypair"
   associate_public_ip_address = false
 
-  # EC2起動時にNginxを自動インストールする
-  user_data = <<-EOF
-    #!/bin/bash
-    dnf update -y
-    
-    #Nginxのインストールと起動
-    dnf install nginx -y
-    systemctl start nginx
-    systemctl enable nginx
-    
-    #MariaDBのインストール
-    dnf install mariadb105 -y
-  EOF
+  #EC2起動時に自動インストールする
+  user_data = templatefile("templates/userdata.sh", {
+    nginx_conf_content = file("templates/nginx.conf.tpl")
+    index_php_content = templatefile("templates/index.php.tpl", {
+      db_host = aws_db_instance.rds_instance.address
+      db_name = var.db_name
+      db_username = var.db_username
+      db_password = var.db_password
+    })
+    style_css_content = file("templates/style.css")
+  })
 
   tags = {
     Name = "web_1a"

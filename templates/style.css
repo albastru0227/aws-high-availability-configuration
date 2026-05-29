@@ -1,0 +1,39 @@
+/* テーブルに罫線を追加する*/
+table {
+        border-collapse: collapse;
+        margin: 10px;
+}
+
+/* 表内の余白と罫線の色と太さ*/
+th, td {
+        border: 1px solid black;
+        padding: 8px;
+}
+
+/*入力項目の内容を縦並びにする*/
+input {
+        display: block;
+}
+
+/*ボタンに色を付ける*/
+button {
+        background-color: #87CEFA;
+        color: black;
+        padding: 10px 30px;
+        border: none;
+        border-radius: 8px;
+        margin-top: 10px;
+}
+
+/*余白の追加*/
+body {
+        padding: 10px;
+}
+
+form {
+        padding: 10px;
+}
+
+label {
+        margin-top: 10px;
+}

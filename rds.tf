@@ -33,3 +33,28 @@ resource "aws_db_instance" "rds_instance" {
     Name = "rds_instance"
   }
 }
+
+#my_databaseにusersのテーブルを作成
+resource "null_resource" "create_table" {
+  #RDS作成時にトリガーが起動する
+  triggers = {
+    rds_id = aws_db_instance.rds_instance.id
+  }
+
+  provisioner "remote-exec" {
+    inline = [ <<-MySQL
+      mysql \
+        -h ${aws_db_instance.rds_instance.address} \
+        -P 3306 \
+        -u ${var.db_username} \
+        -p${var.db_password} \
+        ${var.db_name} \
+        -e 'create table if not exists users (
+          id int auto_increment primary key,
+          name varchar(100),
+          email varchar(100)
+        );'
+    MySQL
+    ]
+  }
+}
