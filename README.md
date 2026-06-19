@@ -1,215 +1,209 @@
-# AWS プライベートサブネット構成 + PHP Webアプリ
-
 ## 概要
 
-AWSのプライベートサブネット構成をTerraformでIaC化し、PHP + MySQL を使ったWebアプリケーションを構築したプロジェクトです。
-ブラウザからフォームに入力したデータをRDS（MySQL）に保存・表示する動的Webアプリを、`terraform apply` 1回で全自動構築できます。
+本リポジトリは、AWSを用いた高可用性・セキュリティを意識したWebアプリケーション基盤の構築を目的としています。<br>
+すべてのリソースはTerraformによってコードで管理しています。
 
----
+### 高可用性
+東京リージョンの2つのアベイラビリティゾーン（ap-northeast-1a・ap-northeast-1c）にWebサーバー（EC2）を分散配置し、<br>
+片方のAZが障害を起こした場合でも継続してサービスを提供できる構成を採用しています。<br>
+RDSについても同様にマルチAZ構成とし、プライマリ・スタンバイ間の自動フェイルオーバーに対応しています。<br>
+またWebサーバーはAuto Scaling Groupとして運用しており、負荷に応じてインスタンス数を自動で増減させることができます。
 
-## 構成図
+### セキュリティ
+HTTPS通信を採用するとともに、ALBの前段にWAF（Web Application Firewall）を設置することで、<br>
+SQLインジェクションなどの攻撃に対する防御を実装しています。
 
-![構成図](aws-private.drawio.png)
+### 運用監視
+CloudWatchによるメトリクス監視を構築しており、CPU使用率が閾値を超えた際にはアラームを発報し、<br>
+Lambda関数で日本語に整形したアラート通知をメールで受け取れる仕組みを実装しています。
 
----
+## アーキテクチャ図
 
-## 使用技術
+![アーキテクチャ図](images/高可用性EC2.drawio.png)
 
-### AWS
-- VPC・サブネット（パブリック/プライベート/DB）
-- EC2（踏み台サーバー・Webサーバー）
-- ALB（Application Load Balancer）
-- RDS（MySQL 8.0）
-- NAT Gateway
-- Internet Gateway
-- Security Group
+## 使用技術・サービス一覧
+
+### AWS サービス
+| サービス | 用途 |
+|---|---|
+| EC2 | Webサーバー・踏み台サーバー |
+| ALB | ロードバランサー・マルチAZ対応 |
+| Auto Scaling Group | EC2の自動スケーリング |
+| RDS (MySQL 8.0) | データベース・マルチAZ構成 |
+| WAF | Webアプリケーションファイアウォール |
+| ACM | SSL/TLS証明書の発行・管理 |
+| Route 53 | DNSレコード管理・ドメイン設定 |
+| CloudWatch | メトリクス監視・アラーム設定 |
+| SNS | アラート通知の配信 |
+| Lambda | アラートメッセージの日本語整形 |
+| VPC | ネットワーク構成 |
+| NAT Gateway | プライベートサブネットのインターネット接続 |
+| IAM | 権限管理 |
 
 ### IaC
-- Terraform
-
-### Webサーバー
-- Nginx 1.30
-- PHP 8.5 + PHP-FPM
-- MariaDB クライアント（MySQL接続用）
-
-### アプリケーション
-- PHP（PDO・プリペアドステートメント）
-- MySQL
-- CSS
-
----
-
-## インフラ構成の詳細
-
-### ネットワーク設計
-
-| リソース | CIDR / 配置 |
+| ツール | 用途 |
 |---|---|
-| VPC | 10.0.0.0/16 |
-| パブリックサブネット 1a | 10.0.1.0/24 |
-| パブリックサブネット 1c | 10.0.2.0/24 |
-| プライベートサブネット 1a | 10.0.10.0/24 |
-| プライベートサブネット 1c | 10.0.20.0/24 |
-| DBサブネット 1a | 10.0.30.0/24 |
-| DBサブネット 1c | 10.0.40.0/24 |
+| Terraform | 全AWSリソースのコード管理 |
 
-### セキュリティグループ設計
-
-| SG名 | インバウンドルール |
+### 言語・ランタイム
+| 言語 | 用途 |
 |---|---|
-| ALB用 | HTTP(80)・HTTPS(443) from 0.0.0.0/0 |
-| 踏み台EC2用 | SSH(22) from 自分のIPのみ |
-| WebサーバーEC2用 | HTTP(80) from ALB SG・SSH(22) from 踏み台 SG |
-| RDS用 | MySQL(3306) from WebサーバーEC2 SG |
+| PHP | Webアプリケーション |
+| Node.js (v20) | Lambda関数 |
+| Bash | EC2起動時のユーザーデータスクリプト |
 
----
+## 構成の説明
 
-## terraform apply で自動化される内容
+### VPC・サブネット構成
+VPC（10.0.0.0/16）内に、パブリックサブネット・プライベートサブネット・DBサブネットをそれぞれ2つずつ（ap-northeast-1a・ap-northeast-1c）作成しています。<br>
+マルチAZ構成により高可用性を維持するとともに、Webサーバーをプライベートサブネットに配置することで、<br>
+外部からの直接アクセスを遮断し、必ずALBを経由する構成としています。
+
+### Route 53 / ACM
+Route 53で独自ドメインを取得・管理しており、ブラウザからドメインを入力するとRoute 53のホストゾーンで名前解決が行われ、ALBへリクエストが転送される仕組みになっています。<br>
+またACMで発行したSSL/TLS証明書をALBにアタッチし、HTTPS通信を実現しています。<br>
+HTTPでアクセスした場合は自動的にHTTPSへリダイレクトされます。
+
+### ALB（Application Load Balancer）
+マルチAZ構成を採用し、2つのAZに配置されたWebサーバーへのトラフィックを負荷分散しています。<br>
+WAFをアタッチすることで、ALBに到達するリクエストに対してアプリケーション層のセキュリティチェックを行っています。
+
+### Auto Scaling Group
+高可用性を維持する目的で導入しています。<br>
+以下の設定でインスタンス数を自動的に増減させます。
+
+| 項目 | 値 |
+|---|---|
+| 最小インスタンス数 | 1 |
+| 希望インスタンス数 | 2 |
+| 最大インスタンス数 | 5 |
+
+### RDS（MySQL 8.0）
+マルチAZ構成を採用し、プライマリとスタンバイの2つのインスタンスを異なるAZに配置しています。<br>
+通常はプライマリインスタンスとのみ通信を行い、プライマリのAZがダウンした場合にはスタンバイが自動的にプライマリへ昇格（フェイルオーバー）し、処理を継続できる構成としています。
+
+### WAF（Web Application Firewall）
+アプリケーション層（L7）のファイアウォールとしてALBにアタッチしています。<br>
+以下の2つのルールを設定しています。
+
+| ルール | 内容 |
+|---|---|
+| AWSマネージドルール | SQLインジェクション・XSSなどの一般的な攻撃を自動検知・遮断 |
+| レートベースルール | 同一IPから5分間に2000リクエスト以上の場合にブロック |
+
+### CloudWatch / SNS / Lambda
+CloudWatchでAuto Scalingグループ内のEC2インスタンスのCPU使用率を監視しています。<br>
+5分間の平均CPU使用率が80%以上になるとアラームを発報し、以下の流れで管理者へ通知を行います。
 
 ```
-① VPC・サブネット・IGW・NAT Gateway作成
-② セキュリティグループ作成
-③ 踏み台EC2作成・秘密鍵自動転送
-④ WebサーバーEC2作成
-   → Nginx インストール・起動
-   → PHP 8.5 インストール・起動
-   → Nginx設定ファイル自動書き換え（PHP-FPM連携）
-   → index.php 自動配置（RDSエンドポイント動的埋め込み）
-   → style.css 自動配置
-⑤ ALB作成・ターゲットグループ・リスナー設定
-⑥ RDS MySQL 8.0 作成
-⑦ usersテーブル自動作成（踏み台EC2経由）
+CloudWatch → SNS（トリガー） → Lambda（日本語に整形） → SNS（メール送信） → 管理者メール
 ```
 
----
+## 実装のポイント
 
-## ファイル構成
+### HTTPS通信の導入
+当初はHTTP通信でALBに接続し、WAFを設置する構成を想定していました。<br>
+しかし実務においてHTTPS通信によるセキュアな接続が標準となっているため、<br>
+Route 53による独自ドメインの設定とACM（AWS Certificate Manager）によるSSL/TLS証明書の発行を追加し、<br>
+HTTPS通信を実現しました。これにより、通信の暗号化とWAFによるアプリケーション層の防御を組み合わせた、<br>
+よりセキュアな構成を実現しています。
 
-```
-saito-aws-private-subnet/
-├── main.tf           → プロバイダー設定
-├── variables.tf      → 変数定義
-├── network.tf        → ネットワークリソース
-├── security_group.tf → セキュリティグループ
-├── ec2.tf            → EC2・秘密鍵自動転送
-├── alb.tf            → ALB関連リソース
-├── rds.tf            → RDS・テーブル自動作成
-├── outputs.tf        → 出力値
-├── terraform.tfvars  → 機密情報（.gitignoreで除外）
-└── templates/
-    ├── userdata.sh      → EC2起動時スクリプト
-    ├── nginx.conf.tpl   → Nginx設定テンプレート
-    ├── index.php.tpl    → PHPアプリテンプレート
-    └── style.css        → CSSスタイルシート
-```
+### Lambdaを活用したアラート通知の改善
+CloudWatchのアラームをSNSで直接メール通知する構成では、<br>
+通知内容が英語かつ情報量が多く、管理者が状況を即座に把握しにくいという課題がありました。<br>
+そこでSNSとメール送信の間にLambda関数を挟み、アラーム情報を日本語に整形した上で送信する構成に改善しました。<br>
+これにより、アラーム名・現在の状態・発生時刻・詳細を見やすい形式で受け取ることができるようになりました。
 
----
+## 学んだこと・苦労した点
 
-## セットアップ手順
+### 学んだこと
 
-### 前提条件
+#### WAF（Web Application Firewall）
+今回初めてWAFを実装しました。<br>
+これまではHTTPS通信やセキュリティグループによるセキュリティ対策を行っていましたが、<br>
+WAFを導入することでアプリケーション層においてSQLインジェクションなどの攻撃を防ぐことができると学びました。<br>
+セキュアな構成を実現するためにはファイアウォールが重要であることを改めて認識しました。
 
-- AWSアカウントが作成済みであること
-- Terraform がインストール済みであること
-- AWS CLI がインストール済みであること
-- AWS SSO の設定が完了していること（profile: myprofile）
-- EC2キーペア（my-keypair）が作成済みであること
+#### CloudWatch / SNS
+今回初めてCloudWatchとSNSを実装しました。<br>
+メトリクスの監視からアラームの発報、通知の送信までを一連の流れで構築することで、<br>
+実際の運用現場で必要とされる監視・通知の仕組みについて理解を深めることができました。
 
-### 手順
+### 苦労した点
 
-**1. リポジトリをクローンする**
+#### CloudWatchのディメンション未設定
+`dimensions`を指定していなかったためCloudWatchが「データ不足」状態から変化しませんでした。<br>
+Auto Scalingグループ名を`dimensions`に指定することで解決しました。
 
-```bash
-git clone https://github.com/albastru0227/saito-aws-private-subnet.git
-cd saito-aws-private-subnet
-```
-
-**2. terraform.tfvars を作成する**
-
+**修正前**
 ```hcl
-ip_address_ssh = "自分のIPアドレス/32"
-db_password    = "任意のパスワード"
+resource "aws_cloudwatch_metric_alarm" "my_cloudwatch" {
+  metric_name = "CPUUtilization"
+  namespace   = "AWS/EC2"
+  # dimensionsの指定なし
+}
 ```
 
-**3. AWSにログインする**
+**修正後**
+```hcl
+resource "aws_cloudwatch_metric_alarm" "my_cloudwatch" {
+  metric_name = "CPUUtilization"
+  namespace   = "AWS/EC2"
+  dimensions = {
+    AutoScalingGroupName = aws_autoscaling_group.main.name
+  }
+}
+```
 
+#### SNSサブスクリプションの未承認
+メール通知が届かない原因として、確認メールの「Confirm subscription」リンクをクリックする必要があることに気づくまで時間がかかりました。<br>
+`terraform apply`後にAWSから送信される確認メールを承認することで解決しました。
+
+**修正前（未承認の状態）**
+
+```ステータス：保留中の確認```
+
+**修正後（承認後の状態）**
+
+```ステータス：確認済み```
+
+#### Terraformの`source_code_hash`
+Lambda関数の設定で`code_sha256`を指定したところ、読み取り専用の属性であるためエラーが発生しました。<br>
+正しくは`source_code_hash`を使用することで解決しました。
+
+**修正前**
+```hcl
+resource "aws_lambda_function" "to_sns_function" {
+  filename     = data.archive_file.to_zip.output_path
+  code_sha256  = data.archive_file.to_zip.output_base64sha256
+}
+```
+
+**修正後**
+```hcl
+resource "aws_lambda_function" "to_sns_function" {
+  filename         = data.archive_file.to_zip.output_path
+  source_code_hash = data.archive_file.to_zip.output_base64sha256
+}
+```
+
+#### CloudWatchアラームのテスト
+`stress`コマンドで1台のEC2にのみ負荷をかけたところ、<br>
+ASG全体の平均CPU使用率が閾値に達しませんでした。<br>
+Auto Scalingグループの監視では全インスタンスの平均値が使われるため、<br>
+2台両方に負荷をかける必要があることを学びました。
+
+**修正前（1台のみ）**
 ```bash
-aws sso login --profile myprofile
+# 1台目のEC2のみで実行
+stress --cpu $(nproc) --timeout 300
 ```
 
-**4. Terraformを初期化する**
-
+**修正後（2台同時）**
 ```bash
-terraform init
+# 1台目のEC2で実行
+stress --cpu $(nproc) --timeout 300
+
+# 2台目のEC2でも同時に実行
+stress --cpu $(nproc) --timeout 300
 ```
-
-**5. インフラを構築する**
-
-```bash
-terraform apply -auto-approve
-```
-
-**6. ブラウザでアクセスする**
-
-`outputs` に表示される `alb_dns` のURLにアクセスする。
-
-```
-http://<alb_dns>
-```
-
-**7. リソースを削除する**
-
-```bash
-terraform destroy
-```
-
----
-
-## Webアプリの機能
-
-- ユーザー登録フォーム（名前・メールアドレス入力）
-- PDO + プリペアドステートメントでRDS MySQLに保存
-- 登録済みデータをテーブル形式で一覧表示
-- PRGパターン実装（リロード時の重複登録防止）
-- CSSによるUI改善
-
----
-
-## 学んだこと
-
-### Terraform
-
-- **`templatefile()` によるファイル分離**
-  当初は `user_data` に全ての設定をヒアドキュメントで直書きしていた。コードが長くなり可読性が低下したため、`templatefile()` を使って `userdata.sh`・`nginx.conf.tpl`・`index.php.tpl`・`style.css` に分離することでスッキリとした構成にすることができた。
-
-- **`$$` によるエスケープ**
-  Terraformの `user_data` 内にPHPコードを直書きする場合、PHPの `$` 変数とTerraformの `${}` 変数が競合する。`templatefile()` を使うことでこの問題を回避し、PHPの `$` をそのまま書けるようになった。
-
-- **`null_resource` の `depends_on` と `sleep`**
-  RDSのテーブル自動作成を `null_resource` で実装した際、EC2の起動直後（`user_data` 実行前）にMySQLコマンドが実行されて失敗した。`depends_on` でリソースの依存関係を定義し、`sleep 60` で待機時間を設けることで解決した。
-
-- **`sensitive = true` によるセキュリティ管理**
-  パスワードやIPアドレスなどの機密情報は `variables.tf` で `sensitive = true` を設定し、`terraform.tfvars` で値を管理する。`terraform.tfvars` は `.gitignore` で除外することでGitHubに公開されないようにした。
-
-### AWS
-
-- **ALBには複数AZのサブネットが必要**
-  ALBを作成する際、単一のサブネットでは作成できず、複数のAZにまたがるサブネットが必要であることを学んだ。
-
-- **プライベートサブネットのEC2はNAT Gateway経由でインターネットに接続する**
-  プライベートサブネットのEC2はインターネットに直接接続できないため、NAT Gateway経由で外部への通信（dnf installなど）を行う。
-
-- **セキュリティグループの参照**
-  `cidr_blocks` でIPアドレス範囲を指定する方法に加え、`security_groups` でセキュリティグループIDを参照することで「特定のリソースからの通信のみ許可」という細かいアクセス制御が実現できる。
-
-### PHP
-
-- **PDO + プリペアドステートメント**
-  SQLインジェクション対策として、ユーザー入力を含むSQLは必ず `prepare()` + `execute()` を使うことが重要。一方でユーザー入力を含まないSQLは `query()` で簡潔に書ける。
-
-- **PRGパターン**
-  フォーム送信後にリダイレクトしないと、ページリロード時に同じPOSTリクエストが再送されてデータが重複登録される。`header('Location: index.php')` + `exit` でリダイレクトすることで解決した。
-
-- **GETとPOSTの使い分け**
-  ページ初回表示時はGET、フォーム送信時はPOSTとなる。`$_SERVER['REQUEST_METHOD']` でリクエストメソッドを判定してDB処理の実行タイミングを制御した。
-

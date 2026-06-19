@@ -84,3 +84,19 @@ variable "db_password" {
   type = string
   sensitive = true
 }
+
+variable "email_address" {
+  description = "SNS通知先のEmailアドレス"
+  type = string
+  sensitive = true
+}
+
+variable "domain_name" {
+  description = "Route53で管理しているドメインのホストゾーン"
+  type = string
+}
+
+variable "sub_domain" {
+  description = "サブドメイン名"
+  type = string
+}
